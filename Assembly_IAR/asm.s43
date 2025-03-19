@@ -1,0 +1,27 @@
+#include <msp430.h>
+;-------------------------------------------------------------------------------
+            RSEG    CSTACK                  ; Define stack segment
+;-------------------------------------------------------------------------------
+            RSEG    CODE
+;-------------------------------------------------------------------------------
+RESET       mov.w   #SFE(CSTACK),SP         ; Initialize stackpointer
+            mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop WDT
+
+SetupP1     bic.b   #BIT0,&P1OUT            ; Clear P1.0 output
+            bis.b   #BIT0,&P1DIR            ; P1.0 output
+            bic.b   #BIT3,&P1DIR            ; Set P1.3 as inputs
+            bic.w   #LOCKLPM5,PM5CTL0       ; Unlock I/O pins
+
+Mainloop    bit.b   #BIT3,&P1IN
+            jz      Clear
+            bis.b   #BIT0,&P1OUT
+            jmp     Mainloop
+Clear       bic.b   #BIT0,&P1OUT
+            jmp     Mainloop
+            nop
+;-------------------------------------------------------------------------------
+            COMMON  INTVEC                  ; Interrupt Vectors
+;-------------------------------------------------------------------------------
+            ORG     RESET_VECTOR            ; Reset Vector
+            DW      RESET
+            END
