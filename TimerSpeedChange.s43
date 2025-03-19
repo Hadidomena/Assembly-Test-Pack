@@ -1,0 +1,80 @@
+#include <msp430.h>
+
+; This short code works as follows:
+; on second timer interruption included LED switches from on to off
+; buttons P1.2 and P2.6 enable user to change speed with which it changes by 
+; changing value of TA0CCR0
+
+;-------------------------------------------------------------------------------
+            RSEG    CSTACK                              ; Define stack segment
+;-------------------------------------------------------------------------------
+            RSEG    CODE
+;-------------------------------------------------------------------------------
+main:       mov.w   #SFE(CSTACK),SP                     ; Initialize stackpointer
+            mov.w   #WDTPW|WDTHOLD,&WDTCTL              ; Stop WDT
+            bis.b   #BIT0,&P1DIR                        ; Set P1.0 to output direction
+            bis.b   #BIT0,&P1OUT                        ; P1.0 high
+            bic.w   #LOCKLPM5,&PM5CTL0                  ; Unlock I/O pins
+            mov.b   #00h, R15
+            
+            bis.w   #CCIE,&TA0CCTL0                     ; TACCR0 interrupt enabled
+            mov.w   #50000,&TA0CCR0
+            bis.w   #TASSEL__SMCLK|MC__UP|ID_3,&TA0CTL  ; SMCLK, up mode, 8 divider 
+
+            nop
+            bis.w   #GIE, SR                            ; Global interruptions
+
+            bic.b   #BIT2, &P1DIR 
+            bis.b   #BIT2, &P1REN                       ; Enable resistor for P1.2
+            bis.b   #BIT2, &P1OUT                       ; Enable pull-up resistor for P1.2
+            bis.b   #BIT2, &P1IE                        ; Enable interruption for P1.2
+            bis.b   #BIT2, &P1IES                       ; enable interruption on clicking the button
+ 
+            bic.b   #BIT6, &P2DIR                       ; repeat for the P2.6
+            bis.b   #BIT6, &P2REN
+            bis.b   #BIT6, &P2OUT     
+            bis.b   #BIT6, &P2IE         
+            bis.b   #BIT6, &P2IES                     
+
+
+loop:
+            jmp loop
+            
+;-------------------------------------------------------------------------------
+TIMER0_A0_ISR:
+            cmp.b #01h, R15
+            jz  SECOND
+            inc.b R15
+            jmp END_Interrupt
+
+SECOND:     
+            mov.b #00h, R15
+            xor.b    #BIT0,&P1OUT                        ; Toggle LED
+            jmp END_Interrupt
+            
+P1_ISR:
+            sub.w #5000, &TA0CCR0
+            bic.b #BIT2, &P1IFG                          ; Clear interrupt flag for P1.2
+            jmp END_Interrupt
+            
+P2_ISR:
+            add.w #5000, &TA0CCR0
+            bic.b #BIT6, &P2IFG                          ; Clear interrupt flag for P2.6
+            jmp END_Interrupt
+            
+END_Interrupt:
+            reti
+;-------------------------------------------------------------------------------
+            COMMON  INTVEC                               ; Interrupt Vectors
+;-------------------------------------------------------------------------------
+            ORG     RESET_VECTOR                         ; POR, ext. Reset
+            DW      main
+            ORG     TIMER0_A0_VECTOR                     ; Timer A Vector
+            DW      TIMER0_A0_ISR
+            ORG     PORT1_VECTOR                         ; Wektor przerwania Port 1 (P1.2)
+            DW      P1_ISR                               ; Wektor przerwania Port 1 (P1.2)
+            ORG     PORT2_VECTOR                         ; Wektor przerwania Port 1 (P1.2)
+            DW      P2_ISR                               ; Wektor przerwania Port 1 (P1.2)
+            END
+
+;-------------------------------------------------------------------------------
